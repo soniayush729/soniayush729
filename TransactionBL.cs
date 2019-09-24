@@ -2,106 +2,221 @@
 using Pecunia.Exceptions;
 using Pecunia.DataAccessLayer;
 using System.Text.RegularExpressions;
+using Pecunia.Entities;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Pecunia.Contracts;
 
 namespace Pecunia.BusinessLayer
 {
     public class TransactionsBL
     {
-        public bool DebitTransactionByWithdrawalSlipBL(long AccountNo, double Amount)
+        public async Task<bool> DebitTransactionByWithdrawalSlipBL(Guid AccountID, double Amount)
         {
-            // FD accountNo ranges from 30000 - 39999, Current accountNo ranges from 40000-49999, savings accountNo ranges from 50000-59999
-            if ((AccountNo > 50000 && AccountNo < 59999) || (AccountNo > 40000 && AccountNo < 49999) || (AccountNo > 30000 && AccountNo < 39999) && Amount <= 50000)
+            bool transactionWithdrawal = false;
+            try
             {
-                TransactionDAL debit = new TransactionDAL();
-                return debit.DebitTransactionByWithdrawalSlipDAL(AccountNo, Amount);
+                AccountDAL accountnoexist = new AccountDAL();
+                if (Amount <= 50000 && accountnoexist.AccountIDExists(AccountID) == true)
+                {
+                    await Task.Run(() =>
+                    {
+                        TransactionDAL debit = new TransactionDAL();
+                        debit.DebitTransactionByWithdrawalSlipDAL(AccountID, Amount);
+                        transactionWithdrawal = true;
+                    });                       
+                                      
+                }
+                return transactionWithdrawal;
             }
-            else
+            catch (PecuniaException ex)
             {
-                throw new DebitSlipException("Invalid Account No or Amount");
+                throw new InsufficientBalanceException(ex.Message);
             }
+           
         }
-        public bool CreditTransactionByWithdrawalSlipBL(long AccountNo, Double Amount)
+        public async Task<bool> CreditTransactionByDepositSlipBL(Guid AccountID, Double Amount)
         {
-
-            if ((AccountNo > 50000 && AccountNo < 59999) || (AccountNo > 40000 && AccountNo < 49999) || (AccountNo > 30000 && AccountNo < 39999) && Amount <= 50000)
+            bool transactionWithdrawal = false;
+            try
             {
-                TransactionDAL credit = new TransactionDAL();
-                return credit.CreditTransactionByWithdrawalSlipDAL(AccountNo, Amount);
+                AccountDAL accountnoexist = new AccountDAL();
+                if (accountnoexist.AccountIDExists(AccountID) == true && Amount <= 50000)
+                {
+                    await Task.Run(() => 
+                    {
+                        TransactionDAL credit = new TransactionDAL();
+                        credit.CreditTransactionByDepositSlipDAL(AccountID, Amount);
+                        transactionWithdrawal = true;
+                    });
+                    
+                }
+                return transactionWithdrawal;
             }
-            else
-            {
-                throw new CreditSlipException("Invalid Account No or Amount");
-            }
-        }
-        public bool DebitTransactionByChequeBL(long AccountNo, double Amount, string ChequeNo)
-        {
-
-            if ((AccountNo > 50000 && AccountNo < 59999) || (AccountNo > 40000 && AccountNo < 49999) || (AccountNo > 30000 && AccountNo < 39999) && Amount <= 50000 && ChequeNo.Length == 10 && (Regex.IsMatch(ChequeNo, "[A-Z0-9]$") == true))
-            {
-                TransactionDAL Cheque = new TransactionDAL();
-                return Cheque.DebitTransactionByChequeDAL(AccountNo, Amount, ChequeNo);
-            }
-            else
-            {
-                throw new DebitChequeException("Invalid Account Credentials or Amount");
-            }
-
-        }
-        public bool CreditTransactionByChequeBL(long AccountNo, double Amount, string ChequeNo)
-        {
             
-            if ((AccountNo > 50000 && AccountNo < 59999) || (AccountNo > 40000 && AccountNo < 49999) || (AccountNo > 30000 && AccountNo < 39999) && Amount <= 50000 && ChequeNo.Length == 10 && (ValidateCheque(Ch) == true))
+            catch(PecuniaException ex)
             {
-                TransactionDAL Cheque = new TransactionDAL();
-                return Cheque.CreditTransactionByChequeDAL(AccountNo, Amount, ChequeNo);
-            }
-            else
-            {
-                throw new CreditChequeException("Invalid Account Credentials or Amount");
+                throw new CreditSlipException(ex.Message);
             }
         }
-        public void DisplayTransactionByCustomerID_DAL(string CustomerID)
+        public async Task<bool> DebitTransactionByChequeBL(Guid AccountID, double Amount, string ChequeNumber)
         {
-            if (Regex.IsMatch(CustomerID, "[0-9]{14}$") == true)
+            bool transactionCheque = false;
+            try
             {
-                TransactionDAL trans = new TransactionDAL();
-                trans.DisplayTransactionByCustomerID_DAL(CustomerID);
+                AccountDAL accountnoexist = new AccountDAL();
+                if (accountnoexist.AccountIDExists(AccountID) == true && Amount <= 50000 && ChequeNumber.Length == 10 && (Regex.IsMatch(ChequeNumber, "[A-Z0-9]$") == true))
+                {
+                    await Task.Run(() =>
+                    {
+                        TransactionDAL Cheque = new TransactionDAL();
+                        Cheque.DebitTransactionByChequeDAL(AccountID, Amount, ChequeNumber);
+                        transactionCheque = true;
+                    });
+                }
+                return transactionCheque;
             }
-            else
+            
+           
+            catch(PecuniaException ex)
             {
-                throw new TransactionDisplayIDException("Invalid ID");
+                throw new DebitChequeException(ex.Message);
+            }
+
+        }
+        public async Task<bool> CreditTransactionByChequeBL(Guid AccountID, double Amount, string ChequeNumber)
+        {
+            bool transactionCheque = false;
+            try
+            {
+                AccountDAL accountnoexist = new AccountDAL();
+                if (accountnoexist.AccountIDExists(AccountID) == true && await ValidateChequeNumber(ChequeNumber) == true && Amount <= 50000)
+                {
+                    await Task.Run(() =>
+                    {
+                        TransactionDAL Cheque = new TransactionDAL();
+                        Cheque.CreditTransactionByChequeDAL(AccountID, Amount, ChequeNumber);
+                        transactionCheque = true;
+                    });
+                    
+                }
+                return transactionCheque;
+            }
+            
+            catch(PecuniaException ex)
+            {
+                throw new CreditChequeException(ex.Message);
             }
         }
-        public void DisplayTransactionByAccountNoBL(long AccountNo)
+       
+        public async Task DisplayTransactionByAccountIDBL(Guid AccountID)
         {
-            if ((AccountNo > 50000 && AccountNo < 59999) || (AccountNo > 40000 && AccountNo < 49999) || (AccountNo > 30000 && AccountNo < 39999))
+            try
             {
-                TransactionDAL acc = new TransactionDAL();
-                acc.DisplayTransactionByAccountNo_DAL(AccountNo);
+                AccountDAL accountnoexist = new AccountDAL();
+                if (accountnoexist.AccountIDExists(AccountID) == true)
+                {
+                    await Task.Run(() =>
+                    {
+                        TransactionDAL transaction = new TransactionDAL();
+                        transaction.DisplayTransactionByAccountIDDAL(AccountID);
+                    });
+                   
+                }
             }
-            else
+            catch (PecuniaException ex)
             {
-                throw new TransactionDisplayAccountException("Invalid AccountNo");
+                throw new TransactionDisplayAccountException(ex.Message);
+            }
+           
+            
+        }
+
+        public async Task<bool> TransactionIDExistsBL(Guid transactionID)
+        {
+            bool transactionIDExists = false;
+            try
+            {
+                TransactionDAL transactionDAL = new TransactionDAL();
+                if(transactionDAL.TransactionIDExistsDAL(transactionID))
+                {
+                    await Task.Run(() =>
+                    {
+                        transactionIDExists = true;
+                    });
+                }
+                return transactionIDExists;
+            }
+            catch (PecuniaException ex)
+            {
+
+                throw new TransactionIDExistsException(ex.Message);
             }
         }
-        public void DisplayTransactionDetailsByTransactionID_DAL(string TransactionID)
+
+        public async Task<Transaction> DisplayTransactionByTransactionIDBL(Guid transactionID)
         {
-            if ()
+            try
             {
-                return;
+                Transaction transaction = new Transaction();
+                if (await TransactionIDExistsBL(transactionID))
+                {
+                    await Task.Run(() => {
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transaction = transactionDAL.DisplayTransactionByTransactionIDDAL(transactionID);
+                    });
+                   
+                }
+                return transaction;
             }
-            else
+            catch (PecuniaException ex)
             {
-                throw new TransactionDetailsException("Invalid Transaction ID");
+
+                throw new TransactionDisplayAccountException(ex.Message);
             }
+                       
+            
         }
-        public bool ValidateCheque(string ChequeNo)
+        public async Task<bool> ValidateChequeNumber(string chequeNumber)
         {
-            if (Regex.IsMatch(ChequeNo, "[0-9]{6}$")==true)
+            bool validChequeNumber = false;
+            try
             {
-                return true;
+                if (Regex.IsMatch(chequeNumber, "[0-9]{6}$") == true)
+                {
+                    await Task.Run(() => {
+                        validChequeNumber = true;
+                    });
+
+                }
+                return validChequeNumber;
             }
-            return false;
+            catch (PecuniaException)
+            {
+
+                throw new ValidateChequeNumberException("Invalid Cheque Number.");
+            }
+            
+        }
+
+        public async Task<List<Transaction>> GetAllTransactionBL()
+        {
+            List<Transaction> transactions = new List<Transaction>();
+            try
+            {
+                await Task.Run(() => 
+                {
+                    TransactionDAL transactionDAL = new TransactionDAL();
+                    transactions = transactionDAL.GetAllTransactionsDAL();
+                });
+                return transactions;
+            }
+            catch (PecuniaException ex)
+            {
+
+                throw new GetAllTransactionException(ex.Message);
+            }
+            
         }
 
     }

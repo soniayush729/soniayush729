@@ -9,237 +9,322 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
 using Newtonsoft.Json;
+using Pecunia.Exceptions;
+using Pecunia.Contracts;
+
 
 namespace Pecunia.DataAccessLayer
 {
-
-    public abstract class TransactionDALAbstract
-    {
-        public abstract bool StoreTransaction(long accountNo, double Amount, TypeOfTranscation type, string mode, string chequeNo);
-        public abstract bool DebitTransactionByWithdrawalSlipDAL(long AccountNo, double Amount);
-        public abstract bool CreditTransactionByWithdrawalSlipDAL(long AccountNo, double Amount);
-        public abstract bool DebitTransactionByChequeDAL(long AccountNo, double Amount, string ChequeNo);
-        public abstract bool CreditTransactionByChequeDAL(long AccountNo, double Amount, string ChequeNo);
-        public abstract TransactionEntities DisplayTransactionByCustomerID_DAL(string CustomerID);
-        public abstract TransactionEntities DisplayTransactionByAccountNo_DAL(long AccountNo);
-        public abstract TransactionEntities DisplayTransactionDetailsByTransactionID_DAL(string TransactionID);
-        public abstract bool  SerializeIntoJSON(List<TransactionEntities> transaction, string FileName);
-        public abstract List<TransactionEntities> DeSerializeFromJSON(string FileName);
-
-    }
+   
     [Serializable]
     public class TransactionDAL: TransactionDALAbstract
     {
         
-        public static List<TransactionEntities> Transactions = new List<TransactionEntities>() { };
-        
-        
-        public override bool StoreTransaction(long accountNo, double Amount, TypeOfTranscation type, string mode, string chequeNo)
+        public static List<Transaction> Transactions = new List<Transaction>() { };
+        public List<Transaction> TransactionsToSerialize = new List<Transaction>() { };
+        private string filepath = "Transactions.txt";
+
+        public override bool StoreTransactionRecord(Guid accountID, double Amount, TypeOfTranscation type, 
+            ModeOfTransaction mode, string chequeNumber)
         {
-            //// retrieving customerID based on account No
-            string customerID = "00000000000000";// dummy initialization to avoid warnings
-            foreach(Account acc in AccountDAL.ListOfAccounts)
+
+            try
             {
-                    if (acc.AccountNo == accountNo)
-                        customerID = acc.CustomerID;
-            }
-
-            DateTime time = DateTime.Now;
-            string transactionID = "TRANS" + time.ToString("yyyyMMddhhmmss");//sample transactionID : TRANS20190921154525
-
-            ////Creating object for Transaction Entites
-            TransactionEntities trans = new TransactionEntities();
-            trans.AccountNo = accountNo;
-            trans.CustomerID = customerID;
-            trans.Type = type;
-            trans.Amount = Amount;
-            trans.TransactionID = transactionID;
-            trans.DateOfTransaction = time;
-            trans.Mode = mode;
-            trans.ChequeNo = chequeNo;
-
-            Transactions.Add(trans);
-            return SerializeIntoJSON(Transactions, "Transactions.txt");
-        }
-
-        public override bool DebitTransactionByWithdrawalSlipDAL(long AccountNo, double Amount)
-        {
-            bool res = false;
-            foreach (Account acc in AccountDAL.ListOfAccounts)
-            {
-                if (acc.AccountNo == AccountNo)
+                //// retrieving customerID based on account No
+                AccountDAL accountDAL = new AccountDAL();
+                List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
+                string customerID = "00000000000000";// dummy initialization to avoid warnings
+                foreach (Account account in accounts)
                 {
-                    acc.Balance = acc.Balance - Amount;
-                    TypeOfTranscation transEnum;
-                    Enum.TryParse("Debit", out transEnum);
-                    StoreTransaction(AccountNo, Amount, transEnum ,"WithdrawalSlip", null);
-                    res = true;
-                    break;
-                
+                    if (account.AccountID == accountID)
+                        customerID = account.CustomerID;
                 }
 
+                DateTime time = DateTime.Now;
+                Guid TransactionID = Guid.NewGuid();
+
+
+
+                Transaction transaction = new Transaction();
+                transaction.AccountID = accountID;
+                transaction.Type = type;
+                transaction.Amount = Amount;
+                transaction.TransactionID = TransactionID;
+                transaction.DateOfTransaction = time;
+                transaction.Mode = mode;
+                transaction.ChequeNumber = chequeNumber;
+
+                List<Transaction> TransactionsRecords = DeserializeFromJSON(filepath);
+                TransactionsRecords.Add(transaction);
+                return SerializeIntoJSON(TransactionsRecords, filepath);
             }
-            if (res == true)
+
+            catch (PecuniaException)
             {
-                return true;
-            }
-            else
-            {
-               return false;
+                throw new StoreTransactionException("Transaction not stored.");
             }
         }
 
-        public override bool CreditTransactionByWithdrawalSlipDAL(long AccountNo, double Amount)
+        public override bool TransactionIDExistsDAL(Guid TransactionID)
         {
-            bool res = false;
-            foreach (Account acc in AccountDAL.ListOfAccounts)
+            bool transactionIDExists = false;
+            try
             {
-                if (acc.AccountNo == AccountNo)
+                List<Transaction> transactionsList = DeserializeFromJSON("Transactions.txt");
+                
+                foreach (Transaction transaction in transactionsList)
                 {
-                    acc.Balance = acc.Balance + Amount;
-                    TypeOfTranscation transEnum;
-                    Enum.TryParse("Credit", out transEnum);
-                    StoreTransaction(AccountNo, Amount, transEnum, "WithdrawalSlip", null);
-                    res=true;
-                    break;
+                    if (transaction.TransactionID == TransactionID)
+                    {
+                        transactionIDExists = true;
+                    }
+
                 }
+                return transactionIDExists;
+            }
+            catch (PecuniaException)
+            {
+                throw new TransactionIDExistsException("Transaction ID does not exist.");
+            }
+           
 
-            }
-            if (res == true)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
         }
-
-        public override bool DebitTransactionByChequeDAL(long AccountNo, double Amount, string ChequeNo)
+        public override bool DebitTransactionByWithdrawalSlipDAL(Guid AccountID, double Amount)
         {
-            bool res = false;
-            foreach (Account acc in AccountDAL.ListOfAccounts)
+            bool transactionWithdrawal = false;
+            try
             {
-                if (acc.AccountNo == AccountNo)
+                AccountDAL accountDAL = new AccountDAL();
+                List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
+                foreach (Account account in accounts)
                 {
-                    acc.Balance = acc.Balance - Amount;
-                    TypeOfTranscation transEnum;
-                    Enum.TryParse("Debit", out transEnum);
-                    StoreTransaction(AccountNo, Amount, transEnum, "Cheque", ChequeNo);
-                    res = true;
-                    break;
+                    if (account.AccountID == AccountID)
+                    {
+                        if (account.Balance >= Amount)
+                        {
+                            account.Balance = account.Balance - Amount;
+                            TypeOfTranscation transEnum;
+                            Enum.TryParse("Debit", out transEnum);
+                            ModeOfTransaction SlipEnum;
+                            Enum.TryParse("WithdrawalSlip", out SlipEnum);
+                            StoreTransactionRecord(AccountID, Amount, transEnum, SlipEnum, null);
+                            transactionWithdrawal = true;
+                            accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                            break;
+                        }
+                    }                             
                 }
+                return transactionWithdrawal;
 
             }
-            if (res == true)
+            catch (PecuniaException)
             {
-                
-                return true;
+                throw new InsufficientBalanceException("Insufficient Balance");
             }
-            else
-            {
-                
-                return false;
-            }
+
         }
 
-        public override bool CreditTransactionByChequeDAL(long AccountNo, double Amount, string ChequeNo)
+        public override bool CreditTransactionByDepositSlipDAL(Guid AccountID, double Amount)
+        {
+            bool transactionDeposit = false;
+            try
+            {
+                AccountDAL accountDAL = new AccountDAL();
+                List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
+                foreach (Account account in accounts)
+                {
+                    if (account.AccountID == AccountID)
+                    {
+                        account.Balance = account.Balance + Amount;
+                        TypeOfTranscation transEnum;
+                        Enum.TryParse("Credit", out transEnum);
+                        ModeOfTransaction SlipEnum;
+                        Enum.TryParse("WithdrawalSlip", out SlipEnum);
+                        StoreTransactionRecord(AccountID, Amount, transEnum, SlipEnum, null);
+                        accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                        transactionDeposit = true;
+                        
+                    }
+
+                }
+                return transactionDeposit;
+            }
+            catch (PecuniaException)
+            {
+
+                throw new CreditSlipException("Invalid Account No or Amount");
+            }
+            
+            
+        }
+
+        public override bool DebitTransactionByChequeDAL(Guid AccountID, double Amount, string ChequeNumber)
+        {
+            bool transactionDebited = false;
+            try
+            {
+                AccountDAL accountDAL = new AccountDAL();
+                List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
+
+                foreach (Account account in accounts)
+                {
+                    if (account.AccountID == AccountID)
+                    {
+                        if (account.Balance >= Amount)
+                        {
+                            account.Balance = account.Balance - Amount;
+                            TypeOfTranscation transEnum;
+                            Enum.TryParse("Debit", out transEnum);
+                            ModeOfTransaction cheEnum;
+                            Enum.TryParse("Cheque", out cheEnum);
+                            StoreTransactionRecord(AccountID, Amount, transEnum, cheEnum, ChequeNumber);
+                            accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                            transactionDebited = true;
+                            
+                        }
+
+                    }
+                }
+                return transactionDebited;
+            }
+            catch (PecuniaException)
+            {
+
+                throw new DebitChequeException("Invalid Account Credentials or Amount");
+            }                   
+        }
+
+        public override bool CreditTransactionByChequeDAL(Guid AccountID, double Amount, string ChequeNumber)
         {
             
-            bool res = false;
-            foreach (Account acc in AccountDAL.ListOfAccounts)
+            bool transactionCredited = false;
+            try
             {
-                if (acc.AccountNo == AccountNo)
+                AccountDAL accountDAL = new AccountDAL();
+                List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
+
+                foreach (Account account in accounts)
                 {
-                    acc.Balance = acc.Balance + Amount;
-                    TypeOfTranscation transEnum;
-                    Enum.TryParse("Credit", out transEnum);
-                    StoreTransaction(AccountNo, Amount, transEnum, "Cheque", ChequeNo);
-                    res = true;
-                    break;
-                }
+                    if (account.AccountID == AccountID)
+                    {
+                        account.Balance = account.Balance + Amount;
+                        TypeOfTranscation transEnum;
+                        Enum.TryParse("Credit", out transEnum);
+                        ModeOfTransaction cheEnum;
+                        Enum.TryParse("Cheque", out cheEnum);
+                        StoreTransactionRecord(AccountID, Amount, transEnum, cheEnum, ChequeNumber);
+                        accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                        transactionCredited = true;
 
+                    }
+
+                }
+                return transactionCredited;
             }
-            if (res == true)
+            catch (PecuniaException)
             {
-                return true;
+
+                throw new CreditChequeException("Invalid Account Credentials or Amount");
             }
-            else
-            {
-                return false;
-            }
+            
+            
         }
 
-        public override TransactionEntities DisplayTransactionByCustomerID_DAL(string CustomerID)
+        public override List<Transaction> DisplayTransactionByAccountIDDAL(Guid AccountID)
         {
-            List<TransactionEntities> transactionList = DeSerializeFromJSON("Transactions.txt");
-
-            foreach (List<TransactionEntities> trans in transactionList)
+            try
             {
-                if (trans.CustomerID == CustomerID)
+                List<Transaction> transactions = DeserializeFromJSON("Transactions.txt");
+                List<Transaction> transactionsOfAccountID = new List<Transaction>();
+                foreach (Transaction transaction in transactions)
                 {
-                    return trans;
+                    if (transaction.AccountID == AccountID)
+                    {
+                        transactionsOfAccountID.Add(transaction);
+                    }
+
                 }
+                return transactionsOfAccountID;
             }
-            return null;
-        }
-
-        public override TransactionEntities DisplayTransactionByAccountNo_DAL(long AccountNo)
-        {
-            List<TransactionEntities> transactionList = DeSerializeFromJSON("Transactions.txt");
-
-            foreach (List<TransactionEntities> trans in transactionList)
+            catch (PecuniaException)
             {
-                if (trans.AccountNo == AccountNo)
-                {
-                    return trans;
-                }
+
+                throw new TransactionDisplayAccountException("Invalid Account ID");
             }
-            return null;
+            
         }
 
-        public override TransactionEntities DisplayTransactionDetailsByTransactionID_DAL(string TransactionID)
+        public override Transaction DisplayTransactionByTransactionIDDAL(Guid TransactionID)
         {
-            List<TransactionEntities> transactionList = DeSerializeFromJSON("Transactions.txt");
-
-            foreach (List<TransactionEntities> trans in transactionList)
+            try
             {
-                if (trans.TransactionID == TransactionID)
+                List<Transaction> transactions = DeserializeFromJSON("Transactions.txt");
+                foreach (Transaction transaction in transactions)
                 {
-                    return trans;
+                    if (transaction.TransactionID == TransactionID)
+                    {
+                        return transaction;
+                    }
                 }
+                return null;
             }
-            return null;
+            catch (PecuniaException)
+            {
+
+                throw new TransactionDisplayAccountException("Invalid Transaction ID");
+            }
+            
         }
 
-        public List<TransactionEntities> GetAllTransactionsDAL()
+        public override List<Transaction> GetAllTransactionsDAL()
         {
-            List<TransactionEntities> transactionList = DeSerializeFromJSON("Transactions.txt");
-            return transactionList;
+            try
+            {
+                List<Transaction> transactions = DeserializeFromJSON("Transactions.txt");
+                return transactions;
+            }
+            catch (PecuniaException)
+            {
+
+                throw new GetAllTransactionException("Transactions not found.");
+            }
+            
+
+        }
+        public override List<Transaction> DeserializeFromJSON(string FileName)
+        {
+            try
+            {
+                List<Transaction> transactionsList = JsonConvert.DeserializeObject<List<Transaction>>(File.ReadAllText(FileName));// Done to read data from file
+                return transactionsList;
+            }
+            catch 
+            {
+                throw;
+            }
+           
         }
 
-        public override bool SerializeIntoJSON(List<TransactionEntities> transaction, string FileName)
+        public override bool SerializeIntoJSON(List<Transaction> transactions, string fileName)
         {
+            try
+            {
                 JsonSerializer serializer = new JsonSerializer();
-                using (StreamWriter sw = new StreamWriter(FileName))   //filename is used so that we can have access over our own file
+                using (FileStream fs = new FileStream(fileName, FileMode.Create, FileAccess.Write))
+                using (StreamWriter sw = new StreamWriter(fs))   //filename is used so that we can have access over our own file
                 using (JsonWriter writer = new JsonTextWriter(sw))
                 {
-                    serializer.Serialize(writer, transaction); // Serialize transactions in transaction.json
+                    serializer.Serialize(writer, transactions);
+                    sw.Close();
+                    fs.Close();
                     return true;
                 }
-        }
-
-        public override List<TransactionEntities> DeSerializeFromJSON(string FileName)
-        {
-            List<TransactionEntities> transaction = JsonConvert.DeserializeObject<List<TransactionEntities>>(File.ReadAllText(FileName));// Done to read data from file
-            using (StreamReader file = File.OpenText(FileName))
+            }
+            catch
             {
-                JsonSerializer serializer = new JsonSerializer();
-                List<TransactionEntities> deserializedTransaction = (List<TransactionEntities>)serializer.Deserialize(file, typeof(List<TransactionEntities>));
-                return deserializedTransaction;
+               throw;
             }
         }
-
 
     }
 }
