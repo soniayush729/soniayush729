@@ -1,0 +1,23 @@
+create database Pecunia
+go
+
+use Pecunia
+go
+
+use schema Pecunia.TransactionEntities,
+go
+
+
+create table TransactionEntities.Transactions
+   (
+AccountNumber bigint,
+AccountID uniqueidentifier foreign key (AccountID) references Accounts.Account(AccountID)
+on delete no action
+on update cascade,
+TypeOfTransaction varchar(6),
+Amount smallmoney,
+TransactionID uniqueidentifier primary key,
+DateOfTransaction DateTime,
+ModeOfTransaction varchar(14),
+ChequeNumber char(6)
+);

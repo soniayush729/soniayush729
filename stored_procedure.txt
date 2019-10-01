@@ -1,0 +1,157 @@
+create procedure StoreTransactionRecord(@accountID varchar(36), @amount money, @typeOfTranscation varchar(6), 
+            @modeOfTransaction varchar(15), @chequeNumber char(6))
+as
+begin
+
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+		if @amount < 0
+			throw 500000,'Enter Correct amount',1;
+ begin try
+ insert into Transactions(AccountID, TypeOFTransaction, Amount, TransactionID, DateOfTransaction,
+  ModeOfTransaction, ChequeNumber)
+ values (@accountID, @typeOfTranscation, @amount, NEWID(), GETDATE(),
+            @modeOfTransaction, @chequeNumber )
+ end try
+ begin catch
+	throw;
+ end catch
+ 
+end
+
+create procedure DebitTransactionByWithdrawalSlip(@accountID varchar(36), @amount money, @typeOfTranscation varchar(6),@modeOfTransaction varchar(15))
+as
+begin
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+		if @amount < 0
+			throw 500000,'Enter Correct amount',1;
+begin try
+	insert into Transactions((AccountID, TypeOFTransaction, Amount, TransactionID, 
+	DateOfTransaction, ModeOfTransaction)
+	values (@accountID, @amount, @typeOfTranscation, NEWID(), GETDATE(), @modeOfTransaction)
+end try
+
+begin catch
+	throw;
+end catch
+
+end
+
+create procedure CreditTransactionByDepositSlip(@accountID varchar(36), @amount money, @typeOfTranscation varchar(6),@modeOfTransaction varchar(15))
+as
+begin
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+		if @amount < 0
+			throw 500000,'Enter Correct amount',1;
+begin try
+	insert into Transactions((AccountID, TypeOFTransaction, Amount, TransactionID, 
+	DateOfTransaction, ModeOfTransaction)
+	values (@accountID, @amount, @typeOfTranscation, NEWID(), GETDATE(), @modeOfTransaction)
+end try
+
+begin catch
+	throw;
+end catch
+
+end
+
+create procedure DebitTransactionByCheque(@accountID varchar(36), @amount money, 
+@typeOfTranscation varchar(6),@modeOfTransaction varchar(15), @chequeNumber char(6))
+as
+begin
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+		if @amount < 0
+			throw 500000,'Enter Correct amount',1;
+begin try
+	insert into Transactions((AccountID, TypeOFTransaction, Amount, TransactionID, 
+	DateOfTransaction, ModeOfTransaction, ChequeNumber)
+	values (@accountID, @amount, @typeOfTranscation, NEWID(), 
+	GETDATE(), @modeOfTransaction, @chequeNumber)
+end try
+
+begin catch
+	throw;
+end catch
+
+end
+
+create procedure CreditTransactionByCheque(@accountID varchar(36), @amount money, 
+@typeOfTranscation varchar(6),@modeOfTransaction varchar(15), @chequeNumber char(6))
+as
+begin
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+		if @amount < 0
+			throw 500000,'Enter Correct amount',1;
+begin try
+	insert into Transactions((AccountID, TypeOFTransaction, Amount, TransactionID, 
+	DateOfTransaction, ModeOfTransaction, ChequeNumber)
+	values (@accountID, @amount, @typeOfTranscation, NEWID(), 
+	GETDATE(), @modeOfTransaction, @chequeNumber)
+end try
+
+begin catch
+	throw;
+end catch
+
+end
+
+create procedure GetTransactionsByAccountID(@accountID varchar(36))
+as
+begin
+		if  @accountID = ''		
+			throw 500000,'The ID is not in correct format',1;
+
+		else
+		select * from Transactions where AccountID = @accountID
+		
+end
+
+create procedure GetTransactionByDateRangeAccountID(@accountID varchar(36), @startdate DateTime, @enddate DateTime)
+as
+begin 
+	if @accountID = ''		
+		throw 500000,'The ID is not in correct format',1;
+	else
+	select * from Transactions where DateOfTransaction between @startdate and @enddate  
+end
+
+create procedure GetTransactionForSpecificDateAccountID(@accountID varchar(36), @date DateTime)
+as
+begin 
+	if @accountID = ''		
+		throw 500000,'The ID is not in correct format',1;
+	else
+	select * from Transactions where DateOfTransaction = @date  
+end
+
+create procedure GetDebitTransactionAccountID(@accountID varchar(36), @debit char(5))
+as
+begin 
+	if @accountID = ''		
+		throw 500000,'The ID is not in correct format',1;
+	else
+	select * from Transactions where TypeOfTransaction = @debit and AccountID = @accountID
+end
+
+create procedure GetCreditTransactionAccountID(@accountID varchar(36), @credit char(6))
+as
+begin 
+	if @accountID = ''		
+		throw 500000,'The ID is not in correct format',1;
+	else
+	select * from Transactions where TypeOfTransaction = @credit  and AccountID = @accountID
+end
+
+create procedure GetAllTransactionAccountID(@accountID varchar(36))
+as
+begin 
+	if @accountID = ''		
+		throw 500000,'The ID is not in correct format',1;
+	else
+	select * from Transactions where AccountID = @accountID
+end
+
