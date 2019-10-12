@@ -3,28 +3,36 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Pecunia.Entities;
-using Pecunia.DataAccessLayer;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
+using Capgemini.Pecunia.DataAccessLayer;
 using System.IO;
 using Newtonsoft.Json;
-using Pecunia.Exceptions;
-using Pecunia.Contracts;
+using Capgemini.Pecunia.Exceptions;
+using Capgemini.Pecunia.Entities;
+using Capgemini.Pecunia.Contracts.DALContracts;
 
-
-namespace Pecunia.DataAccessLayer
+namespace Capgemini.Pecunia.DataAccessLayer
 {
-   
+    /// <summary>
+    /// Contains data access layer methods for inserting, updating, deleting Transaction from Transactions collection.
+    /// </summary>
     [Serializable]
-    public class TransactionDAL: TransactionDALAbstract
+    public class TransactionDAL: TransactionDALBase, IDisposable
     {
         
         public static List<Transaction> Transactions = new List<Transaction>() { };
         public List<Transaction> TransactionsToSerialize = new List<Transaction>() { };
         private string filepath = "Transactions.txt";
 
-        public override bool StoreTransactionRecord(Guid accountID, double Amount, TypeOfTranscation type, 
+        /// <summary>
+        /// Stores all transaction records to Transactions collection.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be transacted.</param>
+        /// <param name="type">Type of transaction such as credit, debit.</param>
+        /// <param name="mode">Mode of transaction such as cheque or withdrawal slip.</param>
+        /// <param name="chequeNumber">Cheque number if mode of transaction is cheque and null in case of withdrawal slip.</param>
+        /// <returns>Determinates whether the transactions are stored.</returns>
+        public override bool StoreTransactionRecord(Guid accountID, double amount, TypeOfTranscation type, 
             ModeOfTransaction mode, string chequeNumber)
         {
 
@@ -37,18 +45,16 @@ namespace Pecunia.DataAccessLayer
                 foreach (Account account in accounts)
                 {
                     if (account.AccountID == accountID)
-                        customerID = account.CustomerID;
+                        customerID = account.CustomerID.ToString();
                 }
 
                 DateTime time = DateTime.Now;
                 Guid TransactionID = Guid.NewGuid();
 
-
-
                 Transaction transaction = new Transaction();
                 transaction.AccountID = accountID;
                 transaction.Type = type;
-                transaction.Amount = Amount;
+                transaction.Amount = amount;
                 transaction.TransactionID = TransactionID;
                 transaction.DateOfTransaction = time;
                 transaction.Mode = mode;
@@ -65,7 +71,12 @@ namespace Pecunia.DataAccessLayer
             }
         }
 
-        public override bool TransactionIDExistsDAL(Guid TransactionID)
+        /// <summary>
+        /// Checks if a particular transaction ID exists in Transactions collection.
+        /// </summary>
+        /// <param name="transactionID">Uniquely generated transaction ID.</param>
+        /// <returns>Determinates whether the transaction ID exists.</returns>
+        public override bool TransactionIDExistsDAL(Guid transactionID)
         {
             bool transactionIDExists = false;
             try
@@ -74,7 +85,7 @@ namespace Pecunia.DataAccessLayer
                 
                 foreach (Transaction transaction in transactionsList)
                 {
-                    if (transaction.TransactionID == TransactionID)
+                    if (transaction.TransactionID == transactionID)
                     {
                         transactionIDExists = true;
                     }
@@ -85,11 +96,17 @@ namespace Pecunia.DataAccessLayer
             catch (PecuniaException)
             {
                 throw new TransactionIDExistsException("Transaction ID does not exist.");
-            }
-           
-
+            }          
         }
-        public override bool DebitTransactionByWithdrawalSlipDAL(Guid AccountID, double Amount)
+
+
+        /// <summary>
+        /// Debit type of transaction with mode of transaction as withdrawal slip.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be debited.</param>       
+        /// <returns>Determinates whether the amount is debited by withdrawal slip.</returns>
+        public override bool DebitTransactionByWithdrawalSlipDAL(Guid accountID, double amount)
         {
             bool transactionWithdrawal = false;
             try
@@ -98,33 +115,37 @@ namespace Pecunia.DataAccessLayer
                 List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
                 foreach (Account account in accounts)
                 {
-                    if (account.AccountID == AccountID)
+                    if (account.AccountID == accountID)
                     {
-                        if (account.Balance >= Amount)
+                        if (account.Balance >= amount)
                         {
-                            account.Balance = account.Balance - Amount;
-                            TypeOfTranscation transEnum;
-                            Enum.TryParse("Debit", out transEnum);
-                            ModeOfTransaction SlipEnum;
-                            Enum.TryParse("WithdrawalSlip", out SlipEnum);
-                            StoreTransactionRecord(AccountID, Amount, transEnum, SlipEnum, null);
+                            account.Balance = account.Balance - amount;
+                            TypeOfTranscation typeOfTransaction;
+                            Enum.TryParse("Debit", out typeOfTransaction);
+                            ModeOfTransaction modeOfTransaction;
+                            Enum.TryParse("WithdrawalSlip", out modeOfTransaction);
+                            StoreTransactionRecord(accountID, amount, typeOfTransaction, modeOfTransaction, null);
                             transactionWithdrawal = true;
-                            accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                            accountDAL.SerialiazeIntoJSON(accounts, "AccountData.txt");
                             break;
                         }
                     }                             
                 }
                 return transactionWithdrawal;
-
             }
             catch (PecuniaException)
             {
                 throw new InsufficientBalanceException("Insufficient Balance");
             }
-
         }
 
-        public override bool CreditTransactionByDepositSlipDAL(Guid AccountID, double Amount)
+        /// <summary>
+        /// Credit type of transaction with mode of transaction as withdrawal slip.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be credited.</param>       
+        /// <returns>Determinates whether the amount is credited by withdrawal slip.</returns>
+        public override bool CreditTransactionByDepositSlipDAL(Guid accountID, double amount)
         {
             bool transactionDeposit = false;
             try
@@ -133,19 +154,17 @@ namespace Pecunia.DataAccessLayer
                 List<Account> accounts = accountDAL.DeserializeFromJSON("AccountData.txt");
                 foreach (Account account in accounts)
                 {
-                    if (account.AccountID == AccountID)
+                    if (account.AccountID == accountID)
                     {
-                        account.Balance = account.Balance + Amount;
-                        TypeOfTranscation transEnum;
-                        Enum.TryParse("Credit", out transEnum);
-                        ModeOfTransaction SlipEnum;
-                        Enum.TryParse("WithdrawalSlip", out SlipEnum);
-                        StoreTransactionRecord(AccountID, Amount, transEnum, SlipEnum, null);
-                        accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
-                        transactionDeposit = true;
-                        
+                        account.Balance = account.Balance + amount;
+                        TypeOfTranscation typeOfTranscation;
+                        Enum.TryParse("Credit", out typeOfTranscation);
+                        ModeOfTransaction modeOfTransaction;
+                        Enum.TryParse("WithdrawalSlip", out modeOfTransaction);
+                        StoreTransactionRecord(accountID, amount, typeOfTranscation, modeOfTransaction, null);
+                        accountDAL.SerialiazeIntoJSON(accounts, "AccountData.txt");
+                        transactionDeposit = true;                        
                     }
-
                 }
                 return transactionDeposit;
             }
@@ -153,12 +172,18 @@ namespace Pecunia.DataAccessLayer
             {
 
                 throw new CreditSlipException("Invalid Account No or Amount");
-            }
-            
-            
+            } 
         }
 
-        public override bool DebitTransactionByChequeDAL(Guid AccountID, double Amount, string ChequeNumber)
+
+        /// <summary>
+        /// Debit type of transaction with mode of transaction as cheque.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be debited.</param>       
+        /// <param name="chequeNumber">Cheque Number.</param>       
+        /// <returns>Determinates whether the amount is debited by withdrawal slip.</returns>
+        public override bool DebitTransactionByChequeDAL(Guid accountID, double amount, string chequeNumber)
         {
             bool transactionDebited = false;
             try
@@ -168,21 +193,19 @@ namespace Pecunia.DataAccessLayer
 
                 foreach (Account account in accounts)
                 {
-                    if (account.AccountID == AccountID)
+                    if (account.AccountID == accountID)
                     {
-                        if (account.Balance >= Amount)
+                        if (account.Balance >= amount)
                         {
-                            account.Balance = account.Balance - Amount;
-                            TypeOfTranscation transEnum;
-                            Enum.TryParse("Debit", out transEnum);
-                            ModeOfTransaction cheEnum;
-                            Enum.TryParse("Cheque", out cheEnum);
-                            StoreTransactionRecord(AccountID, Amount, transEnum, cheEnum, ChequeNumber);
-                            accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
-                            transactionDebited = true;
-                            
+                            account.Balance = account.Balance - amount;
+                            TypeOfTranscation typeOfTranscation;
+                            Enum.TryParse("Debit", out typeOfTranscation);
+                            ModeOfTransaction modeOfTransaction;
+                            Enum.TryParse("Cheque", out modeOfTransaction);
+                            StoreTransactionRecord(accountID, amount, typeOfTranscation, modeOfTransaction, chequeNumber);
+                            accountDAL.SerialiazeIntoJSON(accounts, "AccountData.txt");
+                            transactionDebited = true;                         
                         }
-
                     }
                 }
                 return transactionDebited;
@@ -194,7 +217,15 @@ namespace Pecunia.DataAccessLayer
             }                   
         }
 
-        public override bool CreditTransactionByChequeDAL(Guid AccountID, double Amount, string ChequeNumber)
+
+        /// <summary>
+        /// Credit type of transaction with mode of transaction as cheque.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be credited.</param>      
+        /// <param name="chequeNumber">Cheque Number.</param>                
+        /// <returns>Determinates whether the amount is credited by cheque.</returns>
+        public override bool CreditTransactionByChequeDAL(Guid accountID, double amount, string chequeNumber)
         {
             
             bool transactionCredited = false;
@@ -205,19 +236,18 @@ namespace Pecunia.DataAccessLayer
 
                 foreach (Account account in accounts)
                 {
-                    if (account.AccountID == AccountID)
+                    if (account.AccountID == accountID)
                     {
-                        account.Balance = account.Balance + Amount;
-                        TypeOfTranscation transEnum;
-                        Enum.TryParse("Credit", out transEnum);
-                        ModeOfTransaction cheEnum;
-                        Enum.TryParse("Cheque", out cheEnum);
-                        StoreTransactionRecord(AccountID, Amount, transEnum, cheEnum, ChequeNumber);
-                        accountDAL.SerializeIntoJSON(accounts, "AccountData.txt");
+                        account.Balance = account.Balance + amount;
+                        TypeOfTranscation typeOfTranscation;
+                        Enum.TryParse("Credit", out typeOfTranscation);
+                        ModeOfTransaction modeOfTransaction;
+                        Enum.TryParse("Cheque", out modeOfTransaction);
+                        StoreTransactionRecord(accountID, amount, typeOfTranscation, modeOfTransaction, chequeNumber);
+                        accountDAL.SerialiazeIntoJSON(accounts, "AccountData.txt");
                         transactionCredited = true;
 
                     }
-
                 }
                 return transactionCredited;
             }
@@ -226,11 +256,14 @@ namespace Pecunia.DataAccessLayer
 
                 throw new CreditChequeException("Invalid Account Credentials or Amount");
             }
-            
-            
         }
 
-        public override List<Transaction> DisplayTransactionByAccountIDDAL(Guid AccountID)
+        /// <summary>
+        /// Displays all transactions for a particular account ID.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <returns>Provides a list of transactions for a particular account ID.</returns>
+        public override List<Transaction> DisplayTransactionByAccountIDDAL(Guid accountID)
         {
             try
             {
@@ -238,7 +271,7 @@ namespace Pecunia.DataAccessLayer
                 List<Transaction> transactionsOfAccountID = new List<Transaction>();
                 foreach (Transaction transaction in transactions)
                 {
-                    if (transaction.AccountID == AccountID)
+                    if (transaction.AccountID == accountID)
                     {
                         transactionsOfAccountID.Add(transaction);
                     }
@@ -250,18 +283,22 @@ namespace Pecunia.DataAccessLayer
             {
 
                 throw new TransactionDisplayAccountException("Invalid Account ID");
-            }
-            
+            }            
         }
 
-        public override Transaction DisplayTransactionByTransactionIDDAL(Guid TransactionID)
+        /// <summary>
+        /// Displays transaction for a particular transaction ID.
+        /// </summary>
+        /// <param name="transactionID">Uniquely generated transaction ID.</param>
+        /// <returns>Provides transaction details for a particular transaction ID.</returns>
+        public override Transaction DisplayTransactionByTransactionIDDAL(Guid transactionID)
         {
             try
             {
                 List<Transaction> transactions = DeserializeFromJSON("Transactions.txt");
                 foreach (Transaction transaction in transactions)
                 {
-                    if (transaction.TransactionID == TransactionID)
+                    if (transaction.TransactionID == transactionID)
                     {
                         return transaction;
                     }
@@ -272,10 +309,13 @@ namespace Pecunia.DataAccessLayer
             {
 
                 throw new TransactionDisplayAccountException("Invalid Transaction ID");
-            }
-            
+            }            
         }
 
+        /// <summary>
+        /// Gets all Transactions from the collection.
+        /// </summary>
+        /// <returns>Returns list of all Transactions.</returns>
         public override List<Transaction> GetAllTransactionsDAL()
         {
             try
@@ -287,36 +327,45 @@ namespace Pecunia.DataAccessLayer
             {
 
                 throw new GetAllTransactionException("Transactions not found.");
-            }
-            
-
+            }           
         }
-        public override List<Transaction> DeserializeFromJSON(string FileName)
+
+        /// <summary>
+        /// Reads all Transactions from the file.
+        /// </summary>
+        /// <param name="fileName">Name of file where data is to be read.</param>
+        /// <returns>Returns list of all Transactions.</returns>
+        public override List<Transaction> DeserializeFromJSON(string fileName)
         {
             try
             {
-                List<Transaction> transactionsList = JsonConvert.DeserializeObject<List<Transaction>>(File.ReadAllText(FileName));// Done to read data from file
+                List<Transaction> transactionsList = JsonConvert.DeserializeObject<List<Transaction>>(File.ReadAllText(fileName));// Done to read data from file
                 return transactionsList;
             }
             catch 
             {
                 throw;
-            }
-           
+            }           
         }
 
+        /// <summary>
+        /// Writes all Transactions to the file.
+        /// </summary>
+        /// <param name="transactions">List of transactions.</param>
+        /// <param name="fileName">Name of file where data is to be written.</param>
+        /// <returns>Determinates if the data is written in the file.</returns>
         public override bool SerializeIntoJSON(List<Transaction> transactions, string fileName)
         {
             try
             {
                 JsonSerializer serializer = new JsonSerializer();
-                using (FileStream fs = new FileStream(fileName, FileMode.Create, FileAccess.Write))
-                using (StreamWriter sw = new StreamWriter(fs))   //filename is used so that we can have access over our own file
-                using (JsonWriter writer = new JsonTextWriter(sw))
+                using (FileStream fileStream = new FileStream(fileName, FileMode.Create, FileAccess.Write))
+                using (StreamWriter streamWriter = new StreamWriter(fileStream))   //filename is used so that we can have access over our own file
+                using (JsonWriter writer = new JsonTextWriter(streamWriter))
                 {
                     serializer.Serialize(writer, transactions);
-                    sw.Close();
-                    fs.Close();
+                    streamWriter.Close();
+                    fileStream.Close();
                     return true;
                 }
             }
@@ -324,6 +373,14 @@ namespace Pecunia.DataAccessLayer
             {
                throw;
             }
+        }
+
+        /// <summary>
+        /// Clears unmanaged resources such as db connections or file streams.
+        /// </summary>
+        public void Dispose()
+        {
+            //No unmanaged resources currently
         }
 
     }

@@ -1,28 +1,51 @@
 ﻿using System;
-using Pecunia.Exceptions;
-using Pecunia.DataAccessLayer;
+using Capgemini.Pecunia.DataAccessLayer;
 using System.Text.RegularExpressions;
-using Pecunia.Entities;
+using Capgemini.Pecunia.Exceptions;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Pecunia.Contracts;
+using Capgemini.Pecunia.Entities;
+using Capgemini.Pecunia.Contracts.BLContracts;
+using Capgemini.Pecunia.Contracts.DALContracts;
 
-namespace Pecunia.BusinessLayer
+
+namespace Capgemini.Pecunia.BusinessLayer
 {
-    public class TransactionsBL
+    /// <summary>
+    /// Contains business layer methods for validating, inserting, updating, deleting Employees from Employees collection.
+    /// </summary>
+    public class TransactionBL : BLbase<Transaction>, ITransactionBL, IDisposable
     {
-        public async Task<bool> DebitTransactionByWithdrawalSlipBL(Guid AccountID, double Amount)
+
+        //fields
+        TransactionDALBase transactionDAL;
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        public TransactionBL()
+        {
+            this.transactionDAL = new TransactionDAL();
+        }
+
+        /// <summary>
+        /// Debit type of transaction with mode of transaction as withdrawal slip.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be debited.</param>       
+        /// <returns>Determinates whether the amount is debited by withdrawal slip.</returns>
+        public async Task<bool> DebitTransactionByWithdrawalSlipBL(Guid accountID, double amount)
         {
             bool transactionWithdrawal = false;
             try
             {
                 AccountDAL accountnoexist = new AccountDAL();
-                if (Amount <= 50000 && accountnoexist.AccountIDExists(AccountID) == true)
+                if ((amount <= 50000) && (amount > 0) && accountnoexist.AccountIDExists(accountID) == true)
                 {
                     await Task.Run(() =>
                     {
-                        TransactionDAL debit = new TransactionDAL();
-                        debit.DebitTransactionByWithdrawalSlipDAL(AccountID, Amount);
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transactionDAL.DebitTransactionByWithdrawalSlipDAL(accountID, amount);
                         transactionWithdrawal = true;
                     });                       
                                       
@@ -35,18 +58,25 @@ namespace Pecunia.BusinessLayer
             }
            
         }
-        public async Task<bool> CreditTransactionByDepositSlipBL(Guid AccountID, Double Amount)
+
+        /// <summary>
+        /// Credit type of transaction with mode of transaction as withdrawal slip.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be credited.</param>       
+        /// <returns>Determinates whether the amount is credited by withdrawal slip.</returns>
+        public async Task<bool> CreditTransactionByDepositSlipBL(Guid accountID, double amount)
         {
             bool transactionWithdrawal = false;
             try
             {
                 AccountDAL accountnoexist = new AccountDAL();
-                if (accountnoexist.AccountIDExists(AccountID) == true && Amount <= 50000)
+                if (accountnoexist.AccountIDExists(accountID) == true && (amount <= 50000) && (amount> 0))
                 {
                     await Task.Run(() => 
                     {
-                        TransactionDAL credit = new TransactionDAL();
-                        credit.CreditTransactionByDepositSlipDAL(AccountID, Amount);
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transactionDAL.CreditTransactionByDepositSlipDAL(accountID, amount);
                         transactionWithdrawal = true;
                     });
                     
@@ -59,18 +89,26 @@ namespace Pecunia.BusinessLayer
                 throw new CreditSlipException(ex.Message);
             }
         }
-        public async Task<bool> DebitTransactionByChequeBL(Guid AccountID, double Amount, string ChequeNumber)
+
+        /// <summary>
+        /// Debit type of transaction with mode of transaction as cheque.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be debited.</param>       
+        /// <param name="chequeNumber">Cheque Number.</param>       
+        /// <returns>Determinates whether the amount is debited by withdrawal slip.</returns>
+        public async Task<bool> DebitTransactionByChequeBL(Guid accountID, double amount, string chequeNumber)
         {
             bool transactionCheque = false;
             try
             {
                 AccountDAL accountnoexist = new AccountDAL();
-                if (accountnoexist.AccountIDExists(AccountID) == true && Amount <= 50000 && ChequeNumber.Length == 10 && (Regex.IsMatch(ChequeNumber, "[A-Z0-9]$") == true))
+                if (accountnoexist.AccountIDExists(accountID) == true && (amount <= 50000) && (amount>0) && chequeNumber.Length == 6 && (Regex.IsMatch(chequeNumber, "[A-Z0-9]$") == true))
                 {
                     await Task.Run(() =>
                     {
-                        TransactionDAL Cheque = new TransactionDAL();
-                        Cheque.DebitTransactionByChequeDAL(AccountID, Amount, ChequeNumber);
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transactionDAL.DebitTransactionByChequeDAL(accountID, amount, chequeNumber);
                         transactionCheque = true;
                     });
                 }
@@ -84,18 +122,27 @@ namespace Pecunia.BusinessLayer
             }
 
         }
-        public async Task<bool> CreditTransactionByChequeBL(Guid AccountID, double Amount, string ChequeNumber)
+
+        /// <summary>
+        /// Credit type of transaction with mode of transaction as cheque.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <param name="amount">Amount to be credited.</param>      
+        /// <param name="chequeNumber">Cheque Number.</param>                
+        /// <returns>Determinates whether the amount is credited by cheque.</returns>
+        public async Task<bool> CreditTransactionByChequeBL(Guid accountID, double amount, string chequeNumber)
         {
             bool transactionCheque = false;
             try
             {
                 AccountDAL accountnoexist = new AccountDAL();
-                if (accountnoexist.AccountIDExists(AccountID) == true && await ValidateChequeNumber(ChequeNumber) == true && Amount <= 50000)
+                if (accountnoexist.AccountIDExists(accountID) == true && await ValidateChequeNumber(chequeNumber) == true && (amount <= 50000) && (amount>0)
+                   )
                 {
                     await Task.Run(() =>
                     {
-                        TransactionDAL Cheque = new TransactionDAL();
-                        Cheque.CreditTransactionByChequeDAL(AccountID, Amount, ChequeNumber);
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transactionDAL.CreditTransactionByChequeDAL(accountID, amount, chequeNumber);
                         transactionCheque = true;
                     });
                     
@@ -107,19 +154,25 @@ namespace Pecunia.BusinessLayer
             {
                 throw new CreditChequeException(ex.Message);
             }
+           
         }
-       
-        public async Task DisplayTransactionByAccountIDBL(Guid AccountID)
+
+        /// <summary>
+        /// Displays all transactions for a particular account ID.
+        /// </summary>
+        /// <param name="accountID">Uniquely generated account ID.</param>
+        /// <returns>Provides a list of transactions for a particular account ID.</returns>
+        public async Task DisplayTransactionByAccountIDBL(Guid accountID)
         {
             try
             {
                 AccountDAL accountnoexist = new AccountDAL();
-                if (accountnoexist.AccountIDExists(AccountID) == true)
+                if (accountnoexist.AccountIDExists(accountID) == true)
                 {
                     await Task.Run(() =>
                     {
-                        TransactionDAL transaction = new TransactionDAL();
-                        transaction.DisplayTransactionByAccountIDDAL(AccountID);
+                        TransactionDAL transactionDAL = new TransactionDAL();
+                        transactionDAL.DisplayTransactionByAccountIDDAL(accountID);
                     });
                    
                 }
@@ -132,6 +185,11 @@ namespace Pecunia.BusinessLayer
             
         }
 
+        /// <summary>
+        /// Checks if a particular transaction ID exists in Transactions collection.
+        /// </summary>
+        /// <param name="transactionID">Uniquely generated transaction ID.</param>
+        /// <returns>Determinates whether the transaction ID exists.</returns>
         public async Task<bool> TransactionIDExistsBL(Guid transactionID)
         {
             bool transactionIDExists = false;
@@ -154,6 +212,11 @@ namespace Pecunia.BusinessLayer
             }
         }
 
+        /// <summary>
+        /// Displays transaction for a particular transaction ID.
+        /// </summary>
+        /// <param name="transactionID">Uniquely generated transaction ID.</param>
+        /// <returns>Provides transaction details for a particular transaction ID.</returns>
         public async Task<Transaction> DisplayTransactionByTransactionIDBL(Guid transactionID)
         {
             try
@@ -174,9 +237,13 @@ namespace Pecunia.BusinessLayer
 
                 throw new TransactionDisplayAccountException(ex.Message);
             }
-                       
-            
         }
+
+        /// <summary>
+        /// Validates Cheque Number.
+        /// </summary>
+        /// <param name="chequeNumber">Cheque Number.</param>
+        /// <returns>Determinates whether the cheque number is valid or not.</returns>
         public async Task<bool> ValidateChequeNumber(string chequeNumber)
         {
             bool validChequeNumber = false;
@@ -199,6 +266,10 @@ namespace Pecunia.BusinessLayer
             
         }
 
+        /// <summary>
+        /// Gets all Transactions from the collection.
+        /// </summary>
+        /// <returns>Returns list of all Transactions.</returns>
         public async Task<List<Transaction>> GetAllTransactionBL()
         {
             List<Transaction> transactions = new List<Transaction>();
@@ -217,6 +288,14 @@ namespace Pecunia.BusinessLayer
                 throw new GetAllTransactionException(ex.Message);
             }
             
+        }
+
+        /// <summary>
+        /// Disposes DAL object(s).
+        /// </summary>
+        public void Dispose()
+        {
+            ((TransactionDAL)transactionDAL).Dispose();
         }
 
     }
